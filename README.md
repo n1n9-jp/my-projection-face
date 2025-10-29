@@ -56,3 +56,10 @@
 - メタデータ（元座標のバウンディングボックスなど）を含めたいときは `--include-metadata` を併用する。  
 - 利用例: `python3 svg_to_geojson.py --input face_simple.svg --output face_simple.geojson`  
 - 今後のTODO: 非対応コマンドのスキップオプション、スタイル/グループ階層の扱い、正規化範囲のプリセット追加、座標精度調整を検討する。
+
+## projection-face 連携テスト（2024-XX-XX）
+
+- リポジトリ: `Projects_DataViz_SelfWorks/projection-face`（`origin/main`）。  
+- 手順: 既存の `face.geojson` をバックアップ後、生成した `face_simple.geojson` をコピーし、簡易バリデーション（FeatureCollectionかつ LineString/Polygon のみで構成）を Python スクリプトで確認。  
+- 結果: 11 フィーチャーを含む `FeatureCollection` として正常に読み込まれ、geojson.io でも表示可能な範囲に正規化されていることを確認。  
+- 備考: 元ファイルは `face.geojson.bak` として保存。実描画確認はブラウザで `index.html` を開いて行う。
