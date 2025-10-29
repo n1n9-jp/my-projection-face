@@ -35,6 +35,8 @@ from PIL import Image
 DEFAULT_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 DEFAULT_CONTROLNET_MODEL = "lllyasviel/control_v11p_sd15_lineart"
 DEFAULT_DETECTOR_REPO = "lllyasviel/Annotators"
+DEFAULT_CONTROL_WEIGHT = 0.9
+DEFAULT_COARSE = True
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,17 +75,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--width",
         type=int,
-        default=512,
+        default=384,
         help="生成画像の幅 (ControlNet用にリサイズされます)",
     )
     parser.add_argument(
         "--height",
         type=int,
-        default=512,
+        default=384,
         help="生成画像の高さ (ControlNet用にリサイズされます)",
     )
-    parser.add_argument("--steps", type=int, default=20, help="推論ステップ数")
-    parser.add_argument("--guidance-scale", type=float, default=7.5, help="ガイダンススケール")
+    parser.add_argument("--steps", type=int, default=8, help="推論ステップ数")
+    parser.add_argument("--guidance-scale", type=float, default=5.0, help="ガイダンススケール")
+    parser.add_argument("--control-weight", type=float, default=DEFAULT_CONTROL_WEIGHT, help="ControlNet の寄与（0-1）")
+    coarse_group = parser.add_mutually_exclusive_group()
+    coarse_group.add_argument("--coarse", action="store_true", help="LineArtDetector の coarse モデルを使用")
+    coarse_group.add_argument("--no-coarse", dest="coarse", action="store_false")
+    parser.set_defaults(coarse=DEFAULT_COARSE)
     parser.add_argument("--seed", type=int, default=42, help="乱数シード (再現性確保用)")
     return parser.parse_args()
 
@@ -125,6 +132,8 @@ def generate_lineart(
     guidance_scale: float,
     seed: int,
     detector: Optional[LineartDetector] = None,
+    control_weight: float = DEFAULT_CONTROL_WEIGHT,
+    coarse: bool = DEFAULT_COARSE,
 ) -> Tuple[Image.Image, Image.Image]:
     if isinstance(input_path, Image.Image):
         base_image = input_path
@@ -136,7 +145,14 @@ def generate_lineart(
     if detector is None:
         detector = LineartDetector.from_pretrained(DEFAULT_DETECTOR_REPO)
 
-    control_result = detector(image)
+    detect_res = max(width, height)
+    control_result = detector(
+        image,
+        coarse=coarse,
+        detect_resolution=detect_res,
+        image_resolution=detect_res,
+        output_type="pil",
+    )
     if isinstance(control_result, Image.Image):
         control_image = control_result
     else:
@@ -151,6 +167,7 @@ def generate_lineart(
         num_inference_steps=steps,
         guidance_scale=guidance_scale,
         generator=generator,
+        controlnet_conditioning_scale=control_weight,
     )
     output_image = result.images[0]
 
@@ -175,6 +192,8 @@ def main() -> None:
         guidance_scale=args.guidance_scale,
         seed=args.seed,
         detector=detector,
+        control_weight=args.control_weight,
+        coarse=args.coarse,
     )
 
     control_path = args.output_dir / f"{args.image.stem}_control_lineart.png"

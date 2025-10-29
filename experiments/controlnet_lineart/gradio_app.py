@@ -62,6 +62,8 @@ def infer(
     seed: int,
     width: int,
     height: int,
+    control_weight: float,
+    use_coarse: bool,
     base_model: str,
     controlnet_model: str,
 ):
@@ -94,6 +96,8 @@ def infer(
             guidance_scale=guidance_scale,
             seed=seed,
             detector=detector,
+            control_weight=control_weight,
+            coarse=use_coarse,
         )
         print(
             "[INFO] Generation succeeded:",
@@ -150,18 +154,20 @@ def main() -> None:
             image_input = gr.Image(type="pil", label="Input Image")
             with gr.Column():
                 prompt = gr.Textbox(
-                    value="line art portrait, sketch, clean smooth lines, high quality",
+                    value="minimalist line art portrait, clean outlines, high quality",
                     label="Prompt",
                 )
                 negative_prompt = gr.Textbox(
-                    value="blurry, messy, noisy, extra limbs",
+                    value="shading, messy, noisy, pencil shading",
                     label="Negative Prompt",
                 )
-                steps = gr.Slider(1, 30, value=15, step=1, label="Steps")
-                guidance_scale = gr.Slider(1.0, 15.0, value=7.0, step=0.1, label="Guidance Scale")
+                steps = gr.Slider(1, 30, value=8, step=1, label="Steps")
+                guidance_scale = gr.Slider(1.0, 15.0, value=5.0, step=0.1, label="Guidance Scale")
                 seed = gr.Slider(0, 2**31 - 1, value=42, step=1, label="Seed")
-                width = gr.Slider(256, 768, value=512, step=64, label="Width")
-                height = gr.Slider(256, 768, value=512, step=64, label="Height")
+                width = gr.Slider(256, 768, value=384, step=64, label="Width")
+                height = gr.Slider(256, 768, value=384, step=64, label="Height")
+                control_weight = gr.Slider(0.3, 1.2, value=0.9, step=0.05, label="Control Weight")
+                use_coarse = gr.Checkbox(value=True, label="Use Coarse LineArt", info="太めの輪郭を使う")
                 base_model = gr.Textbox(value=DEFAULT_BASE_MODEL, label="Base Model ID")
                 control_model = gr.Textbox(value=DEFAULT_CONTROLNET_MODEL, label="ControlNet Model ID")
                 run_btn = gr.Button("Generate")
@@ -181,6 +187,8 @@ def main() -> None:
                 seed,
                 width,
                 height,
+                control_weight,
+                use_coarse,
                 base_model,
                 control_model,
             ],

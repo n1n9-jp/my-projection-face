@@ -65,7 +65,7 @@
 
 ## 顔線画化 PoC（Stable Diffusion + ControlNet）
 
-- `experiments/controlnet_lineart/lineart_poc.py` に、Stable Diffusion 1.5 + ControlNet(LineArt) を使って写真から線画を生成するスクリプトを追加。  
+- `experiments/controlnet_lineart/lineart_poc.py` に、Stable Diffusion 1.5 + ControlNet(LineArt) を使って写真から線画を生成するスクリプトを追加。初期設定は 384x384, steps=8, guidance=5.0, Control Weight=0.9, LineArtDetector は coarse モード。  
 - 仮想環境 `.sd-venv` に PyTorch(MPS) / diffusers / controlnet-aux をインストールし、`samples/lena.jpg` を入力として線画生成を確認。  
 - 初回実行はモデルダウンロードを含め数分。その後は 512x512, 15 steps で ~20 秒程度 (M4 MacBook Air)。  
 - 出力例や今後の TODO は `experiments/controlnet_lineart/README.md` に整理。今後、ベクタ化 & GeoJSON 連携を検証する。  

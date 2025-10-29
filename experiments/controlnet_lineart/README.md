@@ -22,11 +22,13 @@ source .sd-venv/bin/activate
 python experiments/controlnet_lineart/lineart_poc.py \
   --image samples/lena.jpg \
   --output-dir outputs/controlnet \
-  --steps 15 \
-  --guidance-scale 7.0
+  --steps 8 \
+  --guidance-scale 5.0 \
+  --control-weight 0.9 \
+  --width 384 --height 384
 ```
 
-- `outputs/controlnet/lena_control_lineart.png`: LineartDetector による線画抽出結果  
+- `outputs/controlnet/lena_control_lineart.png`: LineartDetector（`coarse` モード）による線画抽出結果  
 - `outputs/controlnet/lena_generated.png`: Stable Diffusion + ControlNet によって生成された線画
 
 ### Gradio UI でパラメータ調整
