@@ -64,6 +64,8 @@ def infer(
     height: int,
     control_weight: float,
     use_coarse: bool,
+    detect_resolution: int,
+    bin_threshold: int,
     base_model: str,
     controlnet_model: str,
 ):
@@ -98,6 +100,8 @@ def infer(
             detector=detector,
             control_weight=control_weight,
             coarse=use_coarse,
+            detect_resolution=int(detect_resolution),
+            bin_threshold=int(bin_threshold),
         )
         print(
             "[INFO] Generation succeeded:",
@@ -154,20 +158,22 @@ def main() -> None:
             image_input = gr.Image(type="pil", label="Input Image")
             with gr.Column():
                 prompt = gr.Textbox(
-                    value="minimalist line art portrait, clean outlines, high quality",
+                    value="minimalist black and white line art portrait, clean outlines, white background",
                     label="Prompt",
                 )
                 negative_prompt = gr.Textbox(
-                    value="shading, messy, noisy, pencil shading",
+                    value="color, shading, gradient, messy, noisy, abstract shapes",
                     label="Negative Prompt",
                 )
-                steps = gr.Slider(1, 30, value=8, step=1, label="Steps")
-                guidance_scale = gr.Slider(1.0, 15.0, value=5.0, step=0.1, label="Guidance Scale")
+                steps = gr.Slider(1, 30, value=6, step=1, label="Steps")
+                guidance_scale = gr.Slider(1.0, 15.0, value=3.5, step=0.1, label="Guidance Scale")
                 seed = gr.Slider(0, 2**31 - 1, value=42, step=1, label="Seed")
-                width = gr.Slider(256, 768, value=384, step=64, label="Width")
-                height = gr.Slider(256, 768, value=384, step=64, label="Height")
-                control_weight = gr.Slider(0.3, 1.2, value=0.9, step=0.05, label="Control Weight")
-                use_coarse = gr.Checkbox(value=True, label="Use Coarse LineArt", info="太めの輪郭を使う")
+                width = gr.Slider(224, 512, value=320, step=32, label="Width")
+                height = gr.Slider(224, 512, value=320, step=32, label="Height")
+                control_weight = gr.Slider(0.3, 1.2, value=0.6, step=0.05, label="Control Weight")
+                use_coarse = gr.Checkbox(value=False, label="Use Coarse LineArt", info="太め輪郭 (OFFで細線)")
+                detect_resolution = gr.Slider(128, 512, value=224, step=16, label="Detect Resolution")
+                bin_threshold = gr.Slider(50, 220, value=150, step=5, label="Binary Threshold")
                 base_model = gr.Textbox(value=DEFAULT_BASE_MODEL, label="Base Model ID")
                 control_model = gr.Textbox(value=DEFAULT_CONTROLNET_MODEL, label="ControlNet Model ID")
                 run_btn = gr.Button("Generate")
@@ -189,6 +195,8 @@ def main() -> None:
                 height,
                 control_weight,
                 use_coarse,
+                detect_resolution,
+                bin_threshold,
                 base_model,
                 control_model,
             ],

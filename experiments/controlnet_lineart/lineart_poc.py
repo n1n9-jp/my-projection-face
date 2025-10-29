@@ -35,8 +35,10 @@ from PIL import Image
 DEFAULT_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 DEFAULT_CONTROLNET_MODEL = "lllyasviel/control_v11p_sd15_lineart"
 DEFAULT_DETECTOR_REPO = "lllyasviel/Annotators"
-DEFAULT_CONTROL_WEIGHT = 0.9
-DEFAULT_COARSE = True
+DEFAULT_CONTROL_WEIGHT = 0.6
+DEFAULT_COARSE = False
+DEFAULT_DETECT_RESOLUTION = 224
+DEFAULT_BIN_THRESHOLD = 150
 
 
 def parse_args() -> argparse.Namespace:
@@ -75,18 +77,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--width",
         type=int,
-        default=384,
+        default=320,
         help="生成画像の幅 (ControlNet用にリサイズされます)",
     )
     parser.add_argument(
         "--height",
         type=int,
-        default=384,
+        default=320,
         help="生成画像の高さ (ControlNet用にリサイズされます)",
     )
-    parser.add_argument("--steps", type=int, default=8, help="推論ステップ数")
-    parser.add_argument("--guidance-scale", type=float, default=5.0, help="ガイダンススケール")
+    parser.add_argument("--steps", type=int, default=6, help="推論ステップ数")
+    parser.add_argument("--guidance-scale", type=float, default=3.5, help="ガイダンススケール")
     parser.add_argument("--control-weight", type=float, default=DEFAULT_CONTROL_WEIGHT, help="ControlNet の寄与（0-1）")
+    parser.add_argument("--detect-resolution", type=int, default=DEFAULT_DETECT_RESOLUTION, help="LineArtDetector の detect_resolution")
+    parser.add_argument("--bin-threshold", type=int, default=DEFAULT_BIN_THRESHOLD, help="生成結果の二値化閾値 (0-255)")
     coarse_group = parser.add_mutually_exclusive_group()
     coarse_group.add_argument("--coarse", action="store_true", help="LineArtDetector の coarse モデルを使用")
     coarse_group.add_argument("--no-coarse", dest="coarse", action="store_false")
@@ -134,6 +138,8 @@ def generate_lineart(
     detector: Optional[LineartDetector] = None,
     control_weight: float = DEFAULT_CONTROL_WEIGHT,
     coarse: bool = DEFAULT_COARSE,
+    detect_resolution: int = DEFAULT_DETECT_RESOLUTION,
+    bin_threshold: int = DEFAULT_BIN_THRESHOLD,
 ) -> Tuple[Image.Image, Image.Image]:
     if isinstance(input_path, Image.Image):
         base_image = input_path
@@ -149,8 +155,8 @@ def generate_lineart(
     control_result = detector(
         image,
         coarse=coarse,
-        detect_resolution=detect_res,
-        image_resolution=detect_res,
+        detect_resolution=detect_resolution,
+        image_resolution=width,
         output_type="pil",
     )
     if isinstance(control_result, Image.Image):
@@ -169,7 +175,13 @@ def generate_lineart(
         generator=generator,
         controlnet_conditioning_scale=control_weight,
     )
-    output_image = result.images[0]
+    output_image = result.images[0].convert("L")
+    from PIL import ImageOps
+
+    output_image = ImageOps.autocontrast(output_image)
+    threshold = max(0, min(255, bin_threshold))
+    output_image = output_image.point(lambda p: 255 if p >= threshold else 0, mode="1")
+    output_image = output_image.convert("L")
 
     return control_image, output_image
 
@@ -194,6 +206,8 @@ def main() -> None:
         detector=detector,
         control_weight=args.control_weight,
         coarse=args.coarse,
+        detect_resolution=args.detect_resolution,
+        bin_threshold=args.bin_threshold,
     )
 
     control_path = args.output_dir / f"{args.image.stem}_control_lineart.png"
