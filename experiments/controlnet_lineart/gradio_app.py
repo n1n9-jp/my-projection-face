@@ -7,12 +7,19 @@ This UI is intended for local parameter exploration only.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import gradio as gr
 import torch
 from controlnet_aux import LineartDetector
 from PIL import Image
 
-from .lineart_poc import (
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from experiments.controlnet_lineart.lineart_poc import (
     DEFAULT_BASE_MODEL,
     DEFAULT_CONTROLNET_MODEL,
     DEFAULT_DETECTOR_REPO,
@@ -23,15 +30,19 @@ from .lineart_poc import (
 
 pipe: torch.nn.Module | None = None
 detector: LineartDetector | None = None
+CURRENT_BASE_MODEL: str | None = None
+CURRENT_CONTROLNET_MODEL: str | None = None
 
 
 def ensure_pipeline(
     base_model: str,
     controlnet_model: str,
 ) -> None:
-    global pipe, detector
-    if pipe is None:
+    global pipe, detector, CURRENT_BASE_MODEL, CURRENT_CONTROLNET_MODEL
+    if pipe is None or CURRENT_BASE_MODEL != base_model or CURRENT_CONTROLNET_MODEL != controlnet_model:
         pipe = create_pipeline(base_model, controlnet_model)
+        CURRENT_BASE_MODEL = base_model
+        CURRENT_CONTROLNET_MODEL = controlnet_model
     if detector is None:
         detector = LineartDetector.from_pretrained(DEFAULT_DETECTOR_REPO)
 
@@ -52,6 +63,9 @@ def infer(
     if pipe is None or detector is None:
         raise RuntimeError("Pipeline or detector not initialized")
 
+    width = int(width)
+    height = int(height)
+    seed = int(seed)
     control_img, generated_img = generate_lineart(
         pipe=pipe,
         input_path=image,
