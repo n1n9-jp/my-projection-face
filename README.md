@@ -149,7 +149,8 @@ git submodule add https://github.com/n1n9-jp/projection-face.git external/projec
        --output "$RUN_DIR/${BASENAME}.geojson" \
        --normalize-range -179 179 -85 85
      ```  
-   - `--no-normalize` を付けると SVG のピクセル座標のまま出力される。geojson.io などで閲覧する場合は正規化を有効にしておく。
+   - `--no-normalize` を付けると SVG のピクセル座標のまま出力される。geojson.io などで閲覧する場合は正規化を有効にしておく。  
+   - `external/projection-face/` サブモジュールが存在すれば、最新の GeoJSON が `external/projection-face/face.geojson` にも自動コピーされる。
 4. **projection-face での描画確認**  
    - 生成した GeoJSON（例: `outputs/controlnet/session1/lena.geojson`）を `projection-face` リポジトリのテスト用データにコピーし、想定どおりレンダリングされるかチェックする。  
    - 表示がおかしい場合は前段の閾値や potrace のパラメータを調整し、再度 1. からやり直す。途中で `RUN_NAME` や `BASENAME` を変えないことが混乱防止のポイント。

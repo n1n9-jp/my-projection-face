@@ -9,6 +9,7 @@ ControlNet → SVG → GeoJSON を一括実行するパイプライン本体。
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -213,6 +214,22 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
     run_subprocess(geojson_cmd)
     print(f"[INFO] Saved GeoJSON to {geojson_path}")
+
+    projection_face_dir = ROOT / "external" / "projection-face"
+    if projection_face_dir.exists():
+        dest_geojson = projection_face_dir / "face.geojson"
+        try:
+            dest_geojson.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(geojson_path, dest_geojson)
+            print(f"[INFO] Copied GeoJSON to projection-face submodule: {dest_geojson}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] Failed to copy GeoJSON to projection-face: {exc}", file=sys.stderr)
+    else:
+        print(
+            "[WARN] projection-face submoduleが見つかりません。"
+            "external/projection-face にチェックアウトすると自動コピーされます。",
+            file=sys.stderr,
+        )
     print("[DONE] Pipeline completed successfully.")
 
 
