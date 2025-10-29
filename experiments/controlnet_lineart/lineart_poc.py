@@ -131,9 +131,13 @@ def generate_lineart(
     if detector is None:
         detector = LineartDetector.from_pretrained(DEFAULT_DETECTOR_REPO)
 
-    control_image = detector(image)
+    control_result = detector(image)
+    if isinstance(control_result, Image.Image):
+        control_image = control_result
+    else:
+        control_image = Image.fromarray(control_result)
 
-    generator = torch.Generator(device="cpu").manual_seed(seed)
+    generator = torch.Generator(device="cpu").manual_seed(int(seed))
 
     result = pipe(
         prompt=prompt,

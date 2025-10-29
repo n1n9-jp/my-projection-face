@@ -7,6 +7,8 @@ This UI is intended for local parameter exploration only.
 
 from __future__ import annotations
 
+import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -18,6 +20,10 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+TMP_ROOT = ROOT / ".tmp"
+TMP_ROOT.mkdir(exist_ok=True)
+os.environ.setdefault("TMPDIR", str(TMP_ROOT))
 
 from experiments.controlnet_lineart.lineart_poc import (
     DEFAULT_BASE_MODEL,
@@ -83,6 +89,12 @@ def infer(
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="ControlNet LineArt Gradio UI")
+    parser.add_argument("--host", default="127.0.0.1", help="Server host (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=0, help="Server port (0=auto)")
+    parser.add_argument("--share", action="store_true", help="Create a public shareable link")
+    args = parser.parse_args()
+
     with gr.Blocks() as demo:
         gr.Markdown("# ControlNet LineArt Parameter Tuner")
         gr.Markdown(
@@ -131,7 +143,17 @@ def main() -> None:
             outputs=[control_output, generated_output],
         )
 
-    demo.launch()
+    demo.queue(concurrency_count=1, max_size=4)
+
+    launch_kwargs = {
+        "server_name": args.host,
+        "share": args.share,
+        "show_api": False,
+    }
+    if args.port > 0:
+        launch_kwargs["server_port"] = args.port
+
+    demo.launch(**launch_kwargs)
 
 
 if __name__ == "__main__":
