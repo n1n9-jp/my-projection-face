@@ -1,9 +1,7 @@
 .DS_Store
-.venv/
 .sd-venv/
-.tmp/
 outputs/*
 !outputs/.gitkeep
-samples/*.jpg
-samples/*.png
-samples/*.jpeg
+input/*.jpg
+input/*.png
+input/*.jpeg
