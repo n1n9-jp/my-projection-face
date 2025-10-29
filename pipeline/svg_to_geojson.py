@@ -160,91 +160,63 @@ def parse_path(d: str) -> List[List[Point]]:
             continue
 
         if cmd_upper == "H":
-            if cursor is None:
-                raise ValueError("H コマンドの前に座標がありません")
-            value = float(token)
+            x = float(token)
             idx += 1
-            cx, cy = cursor
-            if is_relative_cmd:
-                point = (cx + value, cy)
-            else:
-                point = (value, cy)
+            bx, by = base_point()
+            point = (bx + x, by) if is_relative_cmd else (x, by)
             current.append(point)
             cursor = point
             continue
 
         if cmd_upper == "V":
-            if cursor is None:
-                raise ValueError("V コマンドの前に座標がありません")
-            value = float(token)
+            y = float(token)
             idx += 1
-            cx, cy = cursor
-            if is_relative_cmd:
-                point = (cx, cy + value)
-            else:
-                point = (cx, value)
+            bx, by = base_point()
+            point = (bx, by + y) if is_relative_cmd else (bx, y)
             current.append(point)
             cursor = point
             continue
 
-        raise ValueError(f"未対応のコマンドまたは不正なトークン: {token}")
+        raise ValueError(f"未対応のコマンドまたは形式です: {command}")
 
     flush_current()
+
+    if sequences and sequences[0]:
+        first_start = sequences[0][0]
+        if sequences[-1] and sequences[-1][-1] == first_start:
+            sequences[-1] = sequences[-1][:-1]
+
     return sequences
-
-
-def is_closed(points: Sequence[Point]) -> bool:
-    return len(points) >= 2 and points[0] == points[-1]
-
-
-def to_linestring(points: Sequence[Point]) -> Dict:
-    return {"type": "LineString", "coordinates": [[x, y] for x, y in points]}
-
-
-def to_polygon(points: Sequence[Point]) -> Dict:
-    coords = list(points)
-    if not is_closed(coords):
-        coords.append(coords[0])
-    return {"type": "Polygon", "coordinates": [[[x, y] for x, y in coords]]}
-
-
-def feature_from_points(points: Sequence[Point], properties: Dict) -> Dict:
-    if is_closed(points):
-        geometry = to_polygon(points)
-    else:
-        geometry = to_linestring(points)
-    return {"type": "Feature", "properties": properties, "geometry": geometry}
-
-
-def iter_coordinates(geometry: Dict) -> Iterable[List[Number]]:
-    gtype = geometry.get("type")
-    coords = geometry.get("coordinates")
-    if gtype == "LineString":
-        for pair in coords:
-            yield pair
-    elif gtype == "Polygon":
-        for ring in coords:
-            for pair in ring:
-                yield pair
-    else:
-        raise ValueError(f"未対応のジオメトリタイプ: {gtype}")
 
 
 def compute_bounds(features: Sequence[Dict]) -> Optional[Tuple[Number, Number, Number, Number]]:
     min_x = min_y = float("inf")
     max_x = max_y = float("-inf")
-    any_coord = False
+    found = False
+
+    def update(point: Sequence[Number]) -> None:
+        nonlocal min_x, min_y, max_x, max_y, found
+        x, y = point
+        min_x = min(min_x, x)
+        min_y = min(min_y, y)
+        max_x = max(max_x, x)
+        max_y = max(max_y, y)
+        found = True
+
     for feature in features:
-        for coord in iter_coordinates(feature["geometry"]):
-            x, y = coord
-            any_coord = True
-            min_x = min(min_x, x)
-            min_y = min(min_y, y)
-            max_x = max(max_x, x)
-            max_y = max(max_y, y)
-    if not any_coord:
+        geometry = feature["geometry"]
+        gtype = geometry["type"]
+        if gtype == "LineString":
+            for point in geometry["coordinates"]:
+                update(point)
+        elif gtype == "Polygon":
+            for ring in geometry["coordinates"]:
+                for point in ring:
+                    update(point)
+
+    if not found:
         return None
-    return min_x, min_y, max_x, max_y
+    return (min_x, min_y, max_x, max_y)
 
 
 def normalize_features(
@@ -308,25 +280,61 @@ def convert_svg(path: str) -> Dict:
             properties["id"] = elem.attrib["id"]
 
         if tag == "path":
-            d = elem.attrib.get("d")
-            if not d:
+            data = elem.attrib.get("d")
+            if not data:
                 raise ValueError("path 要素に d 属性がありません")
-            sequences = parse_path(d)
-            if not sequences:
-                raise ValueError("path から座標を抽出できませんでした")
+            sequences = parse_path(data)
             for seq in sequences:
-                features.append(feature_from_points(seq, properties))
-            continue
-
-        points_attr = elem.attrib.get("points")
-        if not points_attr:
-            raise ValueError(f"{tag} 要素に points 属性がありません")
-        points = parse_points(points_attr)
-        if tag == "polygon" and not is_closed(points):
-            points = points + points[:1]
-        features.append(feature_from_points(points, properties))
+                if len(seq) < 2:
+                    continue
+                geometry_type = "Polygon" if seq[0] == seq[-1] and len(seq) >= 4 else "LineString"
+                if geometry_type == "Polygon":
+                    polygon = [seq]
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "geometry": {"type": "Polygon", "coordinates": polygon},
+                            "properties": properties,
+                        }
+                    )
+                else:
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "geometry": {"type": "LineString", "coordinates": seq},
+                            "properties": properties,
+                        }
+                    )
+        elif tag in {"polyline", "polygon"}:
+            points_attr = elem.attrib.get("points")
+            if not points_attr:
+                raise ValueError(f"{tag} 要素に points 属性がありません")
+            points = parse_points(points_attr)
+            if tag == "polygon" and not is_closed(points):
+                points = points + points[:1]
+            features.append(feature_from_points(points, properties))
 
     return {"type": "FeatureCollection", "features": features}
+
+
+def feature_from_points(points: Sequence[Point], properties: Dict) -> Dict:
+    geometry_type = "Polygon" if is_closed(points) and len(points) >= 4 else "LineString"
+    coords = list(points)
+    if geometry_type == "Polygon":
+        return {
+            "type": "Feature",
+            "geometry": {"type": "Polygon", "coordinates": [coords]},
+            "properties": properties,
+        }
+    return {
+        "type": "Feature",
+        "geometry": {"type": "LineString", "coordinates": coords},
+        "properties": properties,
+    }
+
+
+def is_closed(points: Sequence[Point]) -> bool:
+    return len(points) >= 2 and points[0] == points[-1]
 
 
 def main() -> int:
@@ -359,7 +367,7 @@ def main() -> int:
                 "max_x": bounds[2],
                 "max_y": bounds[3],
             }
-            metadata["normalized_to_lonlat"] = {
+            metadata["normalize_range"] = {
                 "lon_min": lon_min,
                 "lon_max": lon_max,
                 "lat_min": lat_min,
