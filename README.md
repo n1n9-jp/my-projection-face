@@ -72,7 +72,31 @@
 
 ## データ加工パイプラインと実行手順
 
-現時点での実行フローは以下の順序で進める。各ステップはログを確認しながら一つずつ完了させることを推奨。
+現時点での実行フローは以下の通り。一括実行スクリプトで流す方法と、細かく調整したいときの手動手順を併記する。
+
+### 一括実行（推奨）
+
+1 つのコマンドで ControlNet → SVG → GeoJSON までを完了できる。
+
+```bash
+python scripts/run_pipeline.py \
+  --input samples/lena.jpg \
+  --session session1 \
+  --basename lena \
+  --width 384 --height 384 \
+  --steps 8 --guidance-scale 5.0 \
+  --turdsize 2 --alphamax 0.8 \
+  --normalize-range -179 179 -85 85
+```
+
+- 出力先は `outputs/controlnet/<session>`（例: `outputs/controlnet/session1/`）。  
+- `lena_control_lineart.png`（参考用 ControlNet 出力）、`lena_generated.png`（二値線画）、`lena.svg`、`lena.geojson` が順次生成される。  
+- Potrace と svg_to_geojson のオプションは `--turdsize` / `--alphamax`、`--normalize-range` / `--no-normalize` 等で指定できる。  
+- Gradio UI で調整したい場合や中間成果物を見直したい場合は、下記「手動実行フロー」を参照。
+
+### 手動実行フロー
+
+各ステップはログを確認しながら一つずつ完了させることを推奨。
 
 0. **共通設定（セッション識別子の定義）**  
    - 各工程で同じファイル名を使い回すため、まずはセッション名とベース名を決めて環境変数に設定する。1 セッションにつき 1 回実行すればよい。  
@@ -110,14 +134,14 @@
        自動的に `"$RUN_DIR/${BASENAME}_control_lineart.png"`（検出結果）と  
        `"$RUN_DIR/${BASENAME}_generated.png"`（二値化済み線画）が生成される。
 2. **二値PNG → SVG 変換 (potrace)**  
-   - 上記と同じ `RUN_DIR` / `BASENAME` をそのまま使い、二値PNGを SVG に変換する。  
+   - 上記と同じ `RUN_DIR` / `BASENAME` をそのまま使い、二値PNG（必要に応じて JPG でも可）を SVG に変換する。スクリプト側で自動的に PGM へ変換してから `potrace` を呼び出すため、追加の前処理は不要。  
      ```bash
      scripts/png_to_svg.sh \
        "$RUN_DIR/${BASENAME}_generated.png" \
        "$RUN_DIR/${BASENAME}.svg" \
        --turdsize 2 --alphamax 0.8
      ```  
-   - `--turdsize` や `--alphamax` を調整して細かい線の消し込み／滑らかさをチューニングする。PBM への変換が必要なら `convert "$IN" -monochrome /tmp/tmp.pbm` のように事前加工してから `scripts/png_to_svg.sh /tmp/tmp.pbm ...` を実行する。
+   - `--turdsize` や `--alphamax` を調整して細かい線の消し込み／滑らかさをチューニングする。Gradio 出力以外の画像を使う場合は、事前に二値化してから投入することを推奨。
 3. **SVG → GeoJSON 変換**  
    - 同じベース名を用いて `svg_to_geojson.py` を実行する:  
      ```bash
