@@ -70,6 +70,40 @@
 - 初回実行はモデルダウンロードを含め数分。その後は 512x512, 15 steps で ~20 秒程度 (M4 MacBook Air)。  
 - 出力例や今後の TODO は `experiments/controlnet_lineart/README.md` に整理。今後、ベクタ化 & GeoJSON 連携を検証する。  
 
+## データ加工パイプラインと実行手順
+
+現時点での実行フローは以下の順序で進める。各ステップはログを確認しながら一つずつ完了させることを推奨。
+
+1. **線画生成 (ControlNet LineArt)**  
+   - 仮想環境を有効化し、Gradio UI を起動:  
+     ```bash
+     source .sd-venv/bin/activate
+     python experiments/controlnet_lineart/gradio_app.py
+     ```  
+   - 起動後は UI 上で入力画像を選択し、初期プリセット（解像度 384, steps 8, guidance 5.0, Control Weight 0.9, LineArtDetector=coarse）で生成する。  
+   - 生成が成功すると `outputs/controlnet/` 配下に `*_control.png`（ControlNet出力）、`*_.png`（生成画像）、`*_binary.png`（二値化済み）が書き出される。
+2. **二値PNG → SVG 変換 (potrace)**  
+   - `lineart_binary.png` のように黒背景/白線の二値画像を入力とし、potrace でベクタ化する。  
+   - 例:  
+     ```bash
+     scripts/png_to_svg.sh outputs/controlnet/lineart_binary.png outputs/controlnet/lineart.svg --turdsize 2 --alphamax 0.8
+     ```  
+   - `--turdsize` や `--alphamax` を調整して細かい線の消し込み／滑らかさをチューニングする。必要に応じて `convert input.png -monochrome tmp.pbm` のように PBM 化してから与えても良い。
+3. **SVG → GeoJSON 変換**  
+   - 正規化設定を確認しながら `svg_to_geojson.py` を実行する:  
+     ```bash
+     python svg_to_geojson.py \
+       --input outputs/controlnet/lineart.svg \
+       --output outputs/controlnet/lineart.geojson \
+       --normalize-range -179 179 -85 85
+     ```  
+   - `--no-normalize` を付けると SVG のピクセル座標のまま出力される。geojson.io などで閲覧する場合は正規化を有効にしておく。
+4. **projection-face での描画確認**  
+   - 生成した GeoJSON を `projection-face` リポジトリのテスト用データにコピーし、想定どおりレンダリングされるかチェックする。  
+   - 表示がおかしい場合は前段の閾値や potrace のパラメータを調整し、再度 1. からやり直す。
+
+上記手順で生成された `lineart.geojson` を基準として、Raycast 連携や自動化スクリプトの整備を進める。
+
 ## projection-face 連携テスト（2024-XX-XX）
 
 - リポジトリ: `Projects_DataViz_SelfWorks/projection-face`（`origin/main`）。  
