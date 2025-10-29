@@ -65,27 +65,71 @@ def infer(
     base_model: str,
     controlnet_model: str,
 ):
-    ensure_pipeline(base_model, controlnet_model)
-    if pipe is None or detector is None:
-        raise RuntimeError("Pipeline or detector not initialized")
+    import numpy as np
+    import traceback
 
-    width = int(width)
-    height = int(height)
-    seed = int(seed)
-    control_img, generated_img = generate_lineart(
-        pipe=pipe,
-        input_path=image,
-        width=width,
-        height=height,
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        steps=steps,
-        guidance_scale=guidance_scale,
-        seed=seed,
-        detector=detector,
-    )
+    try:
+        ensure_pipeline(base_model, controlnet_model)
+        if pipe is None or detector is None:
+            raise RuntimeError("Pipeline or detector not initialized")
 
-    return control_img, generated_img
+        width = int(width)
+        height = int(height)
+        seed = int(seed)
+        print("[INFO] Starting generation with params:", {
+            "width": width,
+            "height": height,
+            "steps": steps,
+            "guidance": guidance_scale,
+            "seed": seed,
+        })
+        control_img, generated_img = generate_lineart(
+            pipe=pipe,
+            input_path=image,
+            width=width,
+            height=height,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            steps=steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+            detector=detector,
+        )
+        print(
+            "[INFO] Generation succeeded:",
+            {
+                "control_size": control_img.size,
+                "control_mode": control_img.mode,
+                "generated_size": generated_img.size,
+                "generated_mode": generated_img.mode,
+                "generated_bbox": generated_img.getbbox(),
+            },
+        )
+
+        if control_img.mode != "RGB":
+            control_img = control_img.convert("RGB")
+        if generated_img.mode != "RGB":
+            generated_img = generated_img.convert("RGB")
+
+        debug_dir = TMP_ROOT / "gradio_debug"
+        debug_dir.mkdir(exist_ok=True)
+        control_path = debug_dir / "last_control.png"
+        generated_path = debug_dir / "last_generated.png"
+        try:
+            control_img.save(control_path)
+            generated_img.save(generated_path)
+            print(f"[DEBUG] Saved control image to {control_path}")
+            print(f"[DEBUG] Saved generated image to {generated_path}")
+            print("[DEBUG] Generated extrema:", generated_img.getextrema())
+        except Exception as exc:  # noqa: BLE001
+            print("[WARN] Failed saving debug images:", exc)
+
+        return np.array(control_img), np.array(generated_img)
+    except Exception as exc:  # noqa: BLE001
+        tb = traceback.format_exc()
+        print("[ERROR] Generation failed:", exc)
+        print(tb)
+        raise gr.Error(f"Generation failed: {exc}")
 
 
 def main() -> None:

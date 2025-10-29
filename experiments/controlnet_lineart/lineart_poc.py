@@ -89,21 +89,24 @@ def parse_args() -> argparse.Namespace:
 
 
 def create_pipeline(base_model: str, controlnet_model: str) -> StableDiffusionControlNetPipeline:
+    use_mps = torch.backends.mps.is_available()
+    dtype = torch.float32 if use_mps else torch.float16
+
     controlnet = ControlNetModel.from_pretrained(
         controlnet_model,
-        torch_dtype=torch.float16,
+        torch_dtype=dtype,
         use_safetensors=True,
     )
     pipe = StableDiffusionControlNetPipeline.from_pretrained(
         base_model,
         controlnet=controlnet,
         safety_checker=None,
-        torch_dtype=torch.float16,
+        torch_dtype=dtype,
         use_safetensors=True,
     )
     pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
     pipe.enable_attention_slicing()
-    if torch.backends.mps.is_available():
+    if use_mps:
         pipe.to("mps")
     else:
         pipe.to("cpu")
@@ -124,9 +127,11 @@ def generate_lineart(
     detector: Optional[LineartDetector] = None,
 ) -> Tuple[Image.Image, Image.Image]:
     if isinstance(input_path, Image.Image):
-        image = input_path.convert("RGB").resize((width, height))
+        base_image = input_path
     else:
-        image = load_image(str(input_path)).convert("RGB").resize((width, height))
+        base_image = load_image(str(input_path))
+
+    image = base_image.convert("RGB").resize((width, height))
 
     if detector is None:
         detector = LineartDetector.from_pretrained(DEFAULT_DETECTOR_REPO)
