@@ -179,8 +179,25 @@ def main() -> None:
                 run_btn = gr.Button("Generate")
 
         with gr.Row():
-            control_output = gr.Image(type="pil", label="ControlNet Line Art")
-            generated_output = gr.Image(type="pil", label="Generated Line Art")
+            control_output = gr.Image(
+                type="pil",
+                label="ControlNetプレビュー（参考用）",
+                show_label=True,
+                elem_id="control-preview",
+                show_fullscreen_button=True,
+            )
+            generated_output = gr.Image(
+                type="pil",
+                label="二値線画（potraceに渡す）",
+                show_label=True,
+                elem_id="binary-lineart",
+                show_fullscreen_button=True,
+            )
+
+        gr.Markdown(
+            "🔁 次工程へ渡すのは **右側の「二値線画（potraceに渡す）」** です。"
+            " 左側はControlNet検出結果のプレビューなので保存は任意です。",
+        )
 
         run_btn.click(
             fn=infer,
