@@ -47,6 +47,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="処理途中の画像をOpenCVウィンドウで表示（手動クローズが必要）",
     )
+    parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        help="顔検出に失敗した場合でも全体画像を使うフォールバックを無効化する",
+    )
     return parser.parse_args()
 
 
@@ -62,9 +67,9 @@ def detect_face(gray: np.ndarray) -> Tuple[int, int, int, int]:
 
     faces = cascade.detectMultiScale(
         gray,
-        scaleFactor=1.1,
-        minNeighbors=5,
-        minSize=(80, 80),
+        scaleFactor=1.05,
+        minNeighbors=3,
+        minSize=(60, 60),
     )
     if len(faces) == 0:
         raise RuntimeError("顔が検出できませんでした。別の画像で試すかパラメータを調整してください。")
@@ -143,13 +148,27 @@ def show_debug(title: str, image: np.ndarray) -> None:
     cv2.destroyWindow(title)
 
 
-def run_pipeline(image_path: Path, output_dir: Path, padding: float, show: bool) -> None:
+def run_pipeline(
+    image_path: Path,
+    output_dir: Path,
+    padding: float,
+    show: bool,
+    allow_fallback: bool,
+) -> None:
     color = cv2.imread(str(image_path))
     if color is None:
         raise FileNotFoundError(f"画像を読み込めませんでした: {image_path}")
     gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
 
-    x, y, w, h = detect_face(gray)
+    try:
+        x, y, w, h = detect_face(gray)
+    except RuntimeError as exc:
+        if not allow_fallback:
+            raise
+        print(f"[WARN] {exc} -> 画像全体を使用します。")
+        x, y, w, h = 0, 0, gray.shape[1], gray.shape[0]
+        padding = 0.0
+
     x0, y0, w_pad, h_pad = expand_roi(x, y, w, h, padding, gray.shape[1], gray.shape[0])
 
     face_color = color[y0 : y0 + h_pad, x0 : x0 + w_pad]
@@ -192,7 +211,7 @@ def run_pipeline(image_path: Path, output_dir: Path, padding: float, show: bool)
 
 def main() -> None:
     args = parse_args()
-    run_pipeline(args.image, args.output_dir, args.padding, args.show)
+    run_pipeline(args.image, args.output_dir, args.padding, args.show, allow_fallback=not args.no_fallback)
 
 
 if __name__ == "__main__":

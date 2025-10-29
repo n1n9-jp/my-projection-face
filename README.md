@@ -62,7 +62,8 @@
 - `poc/face_lineart_poc.py` に OpenCV ベースのパイプライン（顔検出 → 前処理 → Canny エッジ → 輪郭抽出 → SVG 化）を試作。  
 - 依存ライブラリは仮想環境 `.venv` で `pip install opencv-python`（`numpy` 同梱）。  
 - サンプル実行: `source .venv/bin/activate && python poc/face_lineart_poc.py --image samples/lena.jpg --output-dir outputs`  
-- 出力例と課題、調整ポイントは `poc/face_lineart_notes.md` に記録。今後 `potrace` 等での滑らかな曲線化や、GeoJSON 連携を検証予定。
+- 出力例と課題、調整ポイントは `poc/face_lineart_notes.md` に記録。今後 `potrace` 等での滑らかな曲線化や、GeoJSON 連携を検証予定。  
+- 顔検出に失敗した場合は画像全体をフォールバック対象として処理（`--no-fallback` で無効化可能）。テスト用の `samples/test_face.png`（自動生成）で動作確認済み。
 
 ## projection-face 連携テスト（2024-XX-XX）
 

@@ -21,6 +21,13 @@ python poc/face_lineart_poc.py --image samples/lena.jpg --output-dir outputs
 - `outputs/lena_contours.svg` : エッジを `cv2.findContours` で抽出し、ポリラインとして SVG 化したもの  
 - メトリクス（`outputs/lena_edges.png`）: エッジ画素 4,910（全体の約 8.9%）、抽出された輪郭数 9
 
+### フォールバック動作
+
+- 生成テスト用の `samples/test_face.png`（OpenCV で合成したシンプルな顔）では Haar カスケードで検出できないため、フォールバックとして画像全体を処理。  
+- コマンド例: `python poc/face_lineart_poc.py --image samples/test_face.png --output-dir outputs`  
+- 結果: `[WARN] 顔が検出できませんでした… -> 画像全体を使用します。` のメッセージを出しつつ処理継続。輪郭数は 1（外形のみ）。  
+- フォールバックを無効化したい場合は `--no-fallback` を指定。
+
 ## 処理フロー
 
 1. `haarcascade_frontalface_default.xml` による顔検出。最大のバウンディングボックスを利用。  
