@@ -57,6 +57,13 @@
 - 利用例: `python3 svg_to_geojson.py --input face_simple.svg --output face_simple.geojson`  
 - 今後のTODO: 非対応コマンドのスキップオプション、スタイル/グループ階層の扱い、正規化範囲のプリセット追加、座標精度調整を検討する。
 
+## 顔線画化 PoC
+
+- `poc/face_lineart_poc.py` に OpenCV ベースのパイプライン（顔検出 → 前処理 → Canny エッジ → 輪郭抽出 → SVG 化）を試作。  
+- 依存ライブラリは仮想環境 `.venv` で `pip install opencv-python`（`numpy` 同梱）。  
+- サンプル実行: `source .venv/bin/activate && python poc/face_lineart_poc.py --image samples/lena.jpg --output-dir outputs`  
+- 出力例と課題、調整ポイントは `poc/face_lineart_notes.md` に記録。今後 `potrace` 等での滑らかな曲線化や、GeoJSON 連携を検証予定。
+
 ## projection-face 連携テスト（2024-XX-XX）
 
 - リポジトリ: `Projects_DataViz_SelfWorks/projection-face`（`origin/main`）。  
