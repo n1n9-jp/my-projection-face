@@ -11,7 +11,7 @@
    - 既存の静止画サンプルで線画化アルゴリズムとSVGベクタ化を試し、品質と手順を確かめる。  
    - SVGパスをGeoJSONのジオメトリ（`LineString`/`Polygon`）に変換するロジックを試作し、座標系・縮尺の取り扱いを検証する。
 3. **CLIパイプライン試作**  
-   - コマンドラインから `python pipeline.py --input sample.jpg --output face.geojson` のように実行し、GeoJSONが得られる最小パイプラインを実装する。  
+   - コマンドラインから `python scripts/run_pipeline_cli.py --input sample.jpg --session test --basename face` のように実行し、GeoJSONが得られる最小パイプラインを実装する。  
    - エラーハンドリングやログ出力の基本形を整える。
 4. **projection-face 連携**  
    - 既存プロジェクトのデータ取り込みポイントを確認し、生成したGeoJSONを組み込める API/モジュールを実装する。  
@@ -50,7 +50,7 @@
 
 ## SVG→GeoJSON 変換ツール（現状）
 
-- `pipeline/svg_to_geojson.py` を追加。`path`/`polyline`/`polygon` を読み取り、対応する GeoJSON FeatureCollection を生成する。  
+- `pipeline/svg_to_geojson.py` を用意し、`path`/`polyline`/`polygon` を読み取り、対応する GeoJSON FeatureCollection を生成する。  
 - 標準では SVG 座標を全体のバウンディングボックスに合わせて経度/緯度範囲（デフォルト: `[-179, 179]`, `[-85, 85]`）に線形変換するため、geojson.io などのビューアで読み込める。元のピクセル座標を保ちたい場合は `--no-normalize` を指定する。  
 - 正規化範囲は `--normalize-range LON_MIN LON_MAX LAT_MIN LAT_MAX` で変更可能。Web Mercator に合わせる場合は `--normalize-range -179 179 -85 85` 程度が安全。  
 - メタデータ（元座標のバウンディングボックスなど）を含めたいときは `--include-metadata` を併用する。  
@@ -70,39 +70,11 @@
 - 初回実行はモデルダウンロードを含め数分。その後は 512x512, 15 steps で ~20 秒程度 (M4 MacBook Air)。  
 - 出力例や今後の TODO は `experiments/controlnet_lineart/README.md` に整理。今後、ベクタ化 & GeoJSON 連携を検証する。  
 
+
+
 ## データ加工パイプラインと実行手順
 
-現時点での実行フローは以下の通り。一括実行スクリプトで流す方法と、細かく調整したいときの手動手順を併記する。
-
-### ディレクトリ構成メモ
-
-- `pipeline/`: ControlNet → SVG → GeoJSON の実装本体（Python + 補助スクリプト）。  
-- `scripts/`: 上記パイプラインや補助ツールを呼び出す CLI ラッパーのみを配置。  
-- `experiments/`: Gradio UI や OpenCV 版などの PoC・調整用コードを保管。
-
-### 一括実行（推奨）
-
-1 つのコマンドで ControlNet → SVG → GeoJSON までを完了できる。
-
-```bash
-python scripts/run_pipeline_cli.py \
-  --input samples/lena.jpg \
-  --session session1 \
-  --basename lena \
-  --width 384 --height 384 \
-  --steps 8 --guidance-scale 5.0 \
-  --turdsize 2 --alphamax 0.8 \
-  --normalize-range -179 179 -85 85
-```
-
-- 出力先は `outputs/controlnet/<session>`（例: `outputs/controlnet/session1/`）。  
-- `lena_control_lineart.png`（参考用 ControlNet 出力）、`lena_generated.png`（二値線画）、`lena.svg`、`lena.geojson` が順次生成される。  
-- Potrace と svg_to_geojson のオプションは `--turdsize` / `--alphamax`、`--normalize-range` / `--no-normalize` 等で指定できる。  
-- Gradio UI で調整したい場合や中間成果物を見直したい場合は、下記「手動実行フロー」を参照。
-
-### 手動実行フロー
-
-各ステップはログを確認しながら一つずつ完了させることを推奨。
+現時点での実行フローは以下の順序で進める。各ステップはログを確認しながら一つずつ完了させることを推奨。
 
 0. **共通設定（セッション識別子の定義）**  
    - 各工程で同じファイル名を使い回すため、まずはセッション名とベース名を決めて環境変数に設定する。1 セッションにつき 1 回実行すればよい。  
@@ -140,14 +112,14 @@ python scripts/run_pipeline_cli.py \
        自動的に `"$RUN_DIR/${BASENAME}_control_lineart.png"`（検出結果）と  
        `"$RUN_DIR/${BASENAME}_generated.png"`（二値化済み線画）が生成される。
 2. **二値PNG → SVG 変換 (potrace)**  
-   - 上記と同じ `RUN_DIR` / `BASENAME` をそのまま使い、二値PNG（必要に応じて JPG でも可）を SVG に変換する。スクリプト側で自動的に PGM へ変換してから `potrace` を呼び出すため、追加の前処理は不要。  
+   - 上記と同じ `RUN_DIR` / `BASENAME` をそのまま使い、二値PNGを SVG に変換する。  
      ```bash
      scripts/png_to_svg_cli.sh \
        "$RUN_DIR/${BASENAME}_generated.png" \
        "$RUN_DIR/${BASENAME}.svg" \
        --turdsize 2 --alphamax 0.8
      ```  
-   - `--turdsize` や `--alphamax` を調整して細かい線の消し込み／滑らかさをチューニングする。Gradio 出力以外の画像を使う場合は、事前に二値化してから投入することを推奨。
+   - `--turdsize` や `--alphamax` を調整して細かい線の消し込み／滑らかさをチューニングする。PBM への変換が必要なら `convert "$IN" -monochrome /tmp/tmp.pbm` のように事前加工してから `scripts/png_to_svg_cli.sh /tmp/tmp.pbm ...` を実行する。
 3. **SVG → GeoJSON 変換**  
    - 同じベース名を用いて `pipeline/svg_to_geojson.py` を実行する:  
      ```bash
