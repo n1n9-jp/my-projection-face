@@ -50,11 +50,11 @@
 
 ## SVG→GeoJSON 変換ツール（現状）
 
-- `svg_to_geojson.py` を追加。`path`/`polyline`/`polygon` を読み取り、対応する GeoJSON FeatureCollection を生成する。  
+- `pipeline/svg_to_geojson.py` を追加。`path`/`polyline`/`polygon` を読み取り、対応する GeoJSON FeatureCollection を生成する。  
 - 標準では SVG 座標を全体のバウンディングボックスに合わせて経度/緯度範囲（デフォルト: `[-179, 179]`, `[-85, 85]`）に線形変換するため、geojson.io などのビューアで読み込める。元のピクセル座標を保ちたい場合は `--no-normalize` を指定する。  
 - 正規化範囲は `--normalize-range LON_MIN LON_MAX LAT_MIN LAT_MAX` で変更可能。Web Mercator に合わせる場合は `--normalize-range -179 179 -85 85` 程度が安全。  
 - メタデータ（元座標のバウンディングボックスなど）を含めたいときは `--include-metadata` を併用する。  
-- 利用例: `python3 svg_to_geojson.py --input face_simple.svg --output face_simple.geojson`  
+- 利用例: `python3 pipeline/svg_to_geojson.py --input face_simple.svg --output face_simple.geojson`  
 - 今後のTODO: 非対応コマンドのスキップオプション、スタイル/グループ階層の扱い、正規化範囲のプリセット追加、座標精度調整を検討する。
 
 ## 顔線画化 PoC（OpenCV版・保留中）
@@ -74,12 +74,18 @@
 
 現時点での実行フローは以下の通り。一括実行スクリプトで流す方法と、細かく調整したいときの手動手順を併記する。
 
+### ディレクトリ構成メモ
+
+- `pipeline/`: ControlNet → SVG → GeoJSON の実装本体（Python + 補助スクリプト）。  
+- `scripts/`: 上記パイプラインや補助ツールを呼び出す CLI ラッパーのみを配置。  
+- `experiments/`: Gradio UI や OpenCV 版などの PoC・調整用コードを保管。
+
 ### 一括実行（推奨）
 
 1 つのコマンドで ControlNet → SVG → GeoJSON までを完了できる。
 
 ```bash
-python scripts/run_pipeline.py \
+python scripts/run_pipeline_cli.py \
   --input samples/lena.jpg \
   --session session1 \
   --basename lena \
@@ -136,16 +142,16 @@ python scripts/run_pipeline.py \
 2. **二値PNG → SVG 変換 (potrace)**  
    - 上記と同じ `RUN_DIR` / `BASENAME` をそのまま使い、二値PNG（必要に応じて JPG でも可）を SVG に変換する。スクリプト側で自動的に PGM へ変換してから `potrace` を呼び出すため、追加の前処理は不要。  
      ```bash
-     scripts/png_to_svg.sh \
+     scripts/png_to_svg_cli.sh \
        "$RUN_DIR/${BASENAME}_generated.png" \
        "$RUN_DIR/${BASENAME}.svg" \
        --turdsize 2 --alphamax 0.8
      ```  
    - `--turdsize` や `--alphamax` を調整して細かい線の消し込み／滑らかさをチューニングする。Gradio 出力以外の画像を使う場合は、事前に二値化してから投入することを推奨。
 3. **SVG → GeoJSON 変換**  
-   - 同じベース名を用いて `svg_to_geojson.py` を実行する:  
+   - 同じベース名を用いて `pipeline/svg_to_geojson.py` を実行する:  
      ```bash
-     python svg_to_geojson.py \
+     python pipeline/svg_to_geojson.py \
        --input "$RUN_DIR/${BASENAME}.svg" \
        --output "$RUN_DIR/${BASENAME}.geojson" \
        --normalize-range -179 179 -85 85
