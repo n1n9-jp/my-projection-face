@@ -1,0 +1,3 @@
+[submodule "external/projection-face"]
+	path = external/projection-face
+	url = https://github.com/n1n9-jp/projection-face.git
