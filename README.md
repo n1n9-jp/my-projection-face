@@ -57,13 +57,11 @@
 - 利用例: `python3 svg_to_geojson.py --input face_simple.svg --output face_simple.geojson`  
 - 今後のTODO: 非対応コマンドのスキップオプション、スタイル/グループ階層の扱い、正規化範囲のプリセット追加、座標精度調整を検討する。
 
-## 顔線画化 PoC
+## 顔線画化 PoC（OpenCV版・保留中）
 
-- `poc/face_lineart_poc.py` に OpenCV ベースのパイプライン（顔検出 → 前処理 → Canny エッジ → 輪郭抽出 → SVG 化）を試作。CLAHE + auto Canny（二段階）+ thinning（`opencv-contrib-python` があれば有効）で線の滑らかさを向上。  
-- 依存ライブラリは仮想環境 `.venv` で `pip install opencv-python`（`numpy` 同梱）。  
-- サンプル実行: `source .venv/bin/activate && python poc/face_lineart_poc.py --image samples/lena.jpg --output-dir outputs --max-size 512`  
-- 出力例と課題、調整ポイントは `poc/face_lineart_notes.md` に記録。今後 `potrace` 等での滑らかな曲線化や、GeoJSON 連携を検証予定。  
-- 顔検出に失敗した場合は画像全体をフォールバック対象として処理（`--no-fallback` で無効化可能）。`--max-size` でリサイズし、`poc/face_lineart_notes.md` にある指針に沿って調整することで、実写の自己撮影画像でも輪郭が70本前後に収まり、陰影線が保持される。  
+- `experiments/opencv_face_lineart/face_lineart_poc.py` に OpenCV ベースのパイプライン（顔検出 → 前処理 → Canny エッジ → 輪郭抽出 → SVG 化）を試作。CLAHE + auto Canny（二段階）+ thinning（`opencv-contrib-python` があれば有効）で線の滑らかさを向上。  
+- 依存ライブラリや調整結果は `experiments/opencv_face_lineart/face_lineart_notes.md` に記録。  
+- 現在は Stable Diffusion + ControlNet を利用する方向へ移行予定のため、このOpenCV版はアーカイブ扱い。必要になった場合に参照する。  
 
 ## projection-face 連携テスト（2024-XX-XX）
 
