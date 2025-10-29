@@ -102,11 +102,24 @@ def extract_edges(image: np.ndarray) -> np.ndarray:
     return edges
 
 
-def filter_contours(contours: Iterable[np.ndarray], min_length: float = 40.0) -> List[np.ndarray]:
+def filter_contours(
+    contours: Iterable[np.ndarray],
+    min_length: float = 40.0,
+    image_size: Tuple[int, int] | None = None,
+    max_area_ratio: float = 0.9,
+) -> List[np.ndarray]:
     filtered: List[np.ndarray] = []
+    max_area = None
+    if image_size is not None:
+        h, w = image_size
+        max_area = h * w * max_area_ratio
     for contour in contours:
         length = cv2.arcLength(contour, closed=False)
         if length >= min_length:
+            if max_area is not None:
+                x, y, w, h = cv2.boundingRect(contour)
+                if w * h >= max_area:
+                    continue
             filtered.append(contour)
     return filtered
 
@@ -180,8 +193,8 @@ def run_pipeline(
     # 輪郭抽出（細いノイズを減らすためにモルフォロジー処理で線を太らせる）
     kernel = np.ones((3, 3), np.uint8)
     dilated = cv2.dilate(edges, kernel, iterations=1)
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    filtered = filter_contours(contours, min_length=60.0)
+    contours, _ = cv2.findContours(dilated, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    filtered = filter_contours(contours, min_length=60.0, image_size=dilated.shape)
 
     # 近似して点数削減
     simplified: List[np.ndarray] = []

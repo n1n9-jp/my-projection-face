@@ -25,8 +25,14 @@ python poc/face_lineart_poc.py --image samples/lena.jpg --output-dir outputs
 
 - 生成テスト用の `samples/test_face.png`（OpenCV で合成したシンプルな顔）では Haar カスケードで検出できないため、フォールバックとして画像全体を処理。  
 - コマンド例: `python poc/face_lineart_poc.py --image samples/test_face.png --output-dir outputs`  
-- 結果: `[WARN] 顔が検出できませんでした… -> 画像全体を使用します。` のメッセージを出しつつ処理継続。輪郭数は 1（外形のみ）。  
+- 結果: `[WARN] 顔が検出できませんでした… -> 画像全体を使用します。` のメッセージを出しつつ処理継続。輪郭数は 14（外形+目鼻など）。  
 - フォールバックを無効化したい場合は `--no-fallback` を指定。
+
+### 2024-XX-XX: 輪郭抽出の改善
+
+- `cv2.findContours` を `RETR_EXTERNAL` → `RETR_LIST` に変更し、内部パーツの輪郭も取得。  
+- 画像全体を覆う矩形がSVG化されないよう、バウンディングボックスが元画像の 90% を超える輪郭は除外。  
+- `samples/test_face.png` を使った場合、眼・口・輪郭など複数のパスが出力されるようになった。
 
 ## 処理フロー
 
