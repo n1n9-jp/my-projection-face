@@ -19,6 +19,13 @@ from typing import Iterable, List, Sequence, Tuple
 import cv2
 import numpy as np
 
+try:
+    from cv2 import ximgproc  # type: ignore[attr-defined]
+
+    HAS_THINNING = hasattr(ximgproc, "thinning")
+except Exception:  # noqa: BLE001
+    HAS_THINNING = False
+
 Point = Tuple[float, float]
 
 
@@ -41,6 +48,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.2,
         help="顔領域を切り出す際の余白率（デフォルト: 0.2 = 20%）",
+    )
+    parser.add_argument(
+        "--max-size",
+        type=int,
+        default=512,
+        help="切り出した顔領域をリサイズするときの最大長辺（0 で無効化。デフォルト: 512）",
     )
     parser.add_argument(
         "--show",
@@ -93,21 +106,24 @@ def preprocess(gray_face: np.ndarray) -> np.ndarray:
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     equalized = clahe.apply(gray_face)
     # ノイズを抑えつつエッジを保持
-    bilateral = cv2.bilateralFilter(equalized, d=9, sigmaColor=80, sigmaSpace=80)
+    bilateral = cv2.bilateralFilter(equalized, d=9, sigmaColor=90, sigmaSpace=90)
     # 細かなノイズをさらに抑える
-    smoothed = cv2.GaussianBlur(bilateral, (3, 3), 0)
+    smoothed = cv2.GaussianBlur(bilateral, (5, 5), 0)
     return smoothed
 
 
-def extract_edges(image: np.ndarray, sigma: float = 0.33) -> np.ndarray:
+def extract_edges(image: np.ndarray, sigma: float = 0.33) -> Tuple[np.ndarray, Tuple[int, int]]:
     # 画像の中央値から Canny の閾値を自動算出
     median = float(np.median(image))
     lower = int(max(0, (1.0 - sigma) * median))
     upper = int(min(255, (1.0 + sigma) * median))
     if lower == upper:
         upper = min(255, lower + 30)
-    edges = cv2.Canny(image, lower, upper)
-    return edges
+    edges_main = cv2.Canny(image, lower, upper)
+    detail_lower = max(0, int(lower * 0.5))
+    detail_edges = cv2.Canny(image, detail_lower, upper)
+    edges = cv2.bitwise_or(edges_main, detail_edges)
+    return edges, (lower, upper)
 
 
 def filter_contours(
@@ -175,6 +191,7 @@ def run_pipeline(
     padding: float,
     show: bool,
     allow_fallback: bool,
+    max_size: int,
 ) -> None:
     color = cv2.imread(str(image_path))
     if color is None:
@@ -195,15 +212,27 @@ def run_pipeline(
     face_color = color[y0 : y0 + h_pad, x0 : x0 + w_pad]
     face_gray = gray[y0 : y0 + h_pad, x0 : x0 + w_pad]
 
+    scale = 1.0
+    if max_size > 0:
+        scale = min(1.0, max_size / max(face_gray.shape[:2]))
+    if scale < 1.0:
+        new_size = (int(face_gray.shape[1] * scale), int(face_gray.shape[0] * scale))
+        face_color = cv2.resize(face_color, new_size, interpolation=cv2.INTER_AREA)
+        face_gray = cv2.resize(face_gray, new_size, interpolation=cv2.INTER_AREA)
+
     processed = preprocess(face_gray)
-    edges = extract_edges(processed)
+    edges, thresholds = extract_edges(processed)
 
     # モルフォロジー処理で線を繋げつつノイズ除去
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=1)
-    dilated = cv2.dilate(closed, kernel, iterations=1)
-    contours, _ = cv2.findContours(dilated, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-    filtered = filter_contours(contours, min_length=60.0, image_size=dilated.shape)
+    if HAS_THINNING:
+        processed_edges = ximgproc.thinning(closed, thinningType=ximgproc.THINNING_ZHANGSUEN)  # type: ignore[attr-defined]
+    else:
+        processed_edges = closed
+    contours, _ = cv2.findContours(processed_edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    dynamic_min_length = max(40.0, 0.05 * max(processed_edges.shape))
+    filtered = filter_contours(contours, min_length=dynamic_min_length, image_size=processed_edges.shape)
 
     # 近似して点数削減
     simplified: List[np.ndarray] = []
@@ -219,22 +248,32 @@ def run_pipeline(
     svg_path = output_dir / f"{image_path.stem}_contours.svg"
 
     cv2.imwrite(str(crop_path), face_color)
-    cv2.imwrite(str(edges_path), edges)
-    contours_to_svg(simplified, w_pad, h_pad, svg_path)
+    cv2.imwrite(str(edges_path), processed_edges)
+    contours_to_svg(simplified, face_gray.shape[1], face_gray.shape[0], svg_path)
 
     if show:
         show_debug("face crop", face_color)
         show_debug("processed gray", processed)
-        show_debug("edges", edges)
+        show_debug("edges", processed_edges)
 
     print(f"[INFO] 顔検出領域: x={x0}, y={y0}, w={w_pad}, h={h_pad}")
     print(f"[INFO] 出力: {crop_path}, {edges_path}, {svg_path}")
     print(f"[INFO] 輪郭数: {len(simplified)}")
+    print(f"[INFO] Canny thresholds: lower={thresholds[0]}, upper={thresholds[1]}")
+    if scale < 1.0:
+        print(f"[INFO] リサイズ係数: {scale:.3f}")
 
 
 def main() -> None:
     args = parse_args()
-    run_pipeline(args.image, args.output_dir, args.padding, args.show, allow_fallback=not args.no_fallback)
+    run_pipeline(
+        args.image,
+        args.output_dir,
+        args.padding,
+        args.show,
+        allow_fallback=not args.no_fallback,
+        max_size=args.max_size,
+    )
 
 
 if __name__ == "__main__":

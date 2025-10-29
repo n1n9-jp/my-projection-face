@@ -38,10 +38,11 @@ python poc/face_lineart_poc.py --image samples/lena.jpg --output-dir outputs
 
 - グローバル平坦化から CLAHE（局所コントラスト強調）へ変更し、陰影の少ない領域でも輪郭を保持。  
 - bilateral filter + Gaussian blur の2段構えでノイズを抑えつつエッジを柔らかく整形。  
-- Canny の閾値は画像中央値ベースで自動算出（auto Canny）。  
-- モルフォロジー処理を「クロージング → 膨張」に変更し、細線を適度に繋げる。  
+- Canny の閾値は画像中央値ベースで自動算出（auto Canny）し、低閾値の補助 Canny もマージ。  
+- モルフォロジー処理を「クロージング → thinning（`opencv-contrib` が無い場合はそのまま）」に変更し、線を細く維持。  
 - `cv2.approxPolyDP` の `epsilon` を厳しめに設定し、折れ線感を軽減。  
-- `samples/lena.jpg` の出力では輪郭数 22、エッジ画素比 ~5.4%。外形・髪・目鼻の線が増え、Projection Face 用の素材に一歩近づいた。
+- 切り出した顔領域を `--max-size` でリサイズ（デフォルト 512px）することで過密な輪郭を抑制。  
+- `samples/lena.jpg` では輪郭数 23、エッジ画素比 ~5.4%。`samples/self.jpg`（長辺 758px）でもリサイズ＋動的輪郭長閾値のおかげで輪郭 71 本に抑えつつディテールを保持。
 
 ## 処理フロー
 
