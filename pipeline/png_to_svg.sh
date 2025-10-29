@@ -42,3 +42,4 @@ potrace "$tmp_input" --svg -o "$output" "$@"
 if [ -n "$cleanup" ]; then
   rm -f "$cleanup"
 fi
+

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-ControlNet → SVG → GeoJSON を一括で実行するユーティリティ。
+ControlNet → SVG → GeoJSON を一括実行するパイプライン本体。
 
-Usage:
-    python scripts/run_pipeline.py --input samples/lena.jpg --session session1 --basename lena
+`scripts/run_pipeline.py` から呼び出されることを想定しているが、
+このモジュール単体でもエントリーポイントとして利用できる。
 """
 
 from __future__ import annotations
@@ -14,13 +14,13 @@ import sys
 from pathlib import Path
 from typing import List, Sequence
 
-from PIL import Image  # noqa: F401  # import side-effect (used by diffusers internally)
+from controlnet_aux import LineartDetector
 
 ROOT = Path(__file__).resolve().parents[1]
+PIPELINE_ROOT = Path(__file__).resolve().parent
+
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-
-from controlnet_aux import LineartDetector  # noqa: E402
 
 from experiments.controlnet_lineart.lineart_poc import (  # noqa: E402
     DEFAULT_BASE_MODEL,
@@ -34,8 +34,8 @@ from experiments.controlnet_lineart.lineart_poc import (  # noqa: E402
     generate_lineart,
 )
 
-PNG_TO_SVG_SCRIPT = ROOT / "scripts" / "png_to_svg.sh"
-SVG_TO_GEOJSON_SCRIPT = ROOT / "svg_to_geojson.py"
+PNG_TO_SVG_SCRIPT = PIPELINE_ROOT / "png_to_svg.sh"
+SVG_TO_GEOJSON_SCRIPT = PIPELINE_ROOT / "svg_to_geojson.py"
 
 
 def parse_args() -> argparse.Namespace:
