@@ -29,6 +29,17 @@ python experiments/controlnet_lineart/lineart_poc.py \
 - `outputs/controlnet/lena_control_lineart.png`: LineartDetector による線画抽出結果  
 - `outputs/controlnet/lena_generated.png`: Stable Diffusion + ControlNet によって生成された線画
 
+### Gradio UI でパラメータ調整
+
+```bash
+source .sd-venv/bin/activate
+python experiments/controlnet_lineart/gradio_app.py
+```
+
+- ブラウザが自動で開き、画像のアップロードとプロンプト、ステップ数、ガイダンススケールなどを調整できる。  
+- 生成に数十秒かかるが、手動でスクリプトを編集するより試行錯誤が容易。  
+- あくまでローカルでのパラメータ検証用であり、最終成果物のUIではない。
+
 ## 所感 / TODO
 
 - M4 MacBook Air (MPS) で 512x512, 15 steps の場合、生成に ~20 秒程度。  

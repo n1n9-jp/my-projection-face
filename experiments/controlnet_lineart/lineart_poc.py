@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import torch
 from controlnet_aux import LineartDetector
@@ -34,6 +34,7 @@ from PIL import Image
 
 DEFAULT_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 DEFAULT_CONTROLNET_MODEL = "lllyasviel/control_v11p_sd15_lineart"
+DEFAULT_DETECTOR_REPO = "lllyasviel/Annotators"
 
 
 def parse_args() -> argparse.Namespace:
@@ -112,7 +113,7 @@ def create_pipeline(base_model: str, controlnet_model: str) -> StableDiffusionCo
 
 def generate_lineart(
     pipe: StableDiffusionControlNetPipeline,
-    input_path: Path,
+    input_path: Union[Path, Image.Image],
     width: int,
     height: int,
     prompt: str,
@@ -121,11 +122,14 @@ def generate_lineart(
     guidance_scale: float,
     seed: int,
     detector: Optional[LineartDetector] = None,
-) -> Tuple["Image.Image", "Image.Image"]:
-    image = load_image(str(input_path)).convert("RGB").resize((width, height))
+) -> Tuple[Image.Image, Image.Image]:
+    if isinstance(input_path, Image.Image):
+        image = input_path.convert("RGB").resize((width, height))
+    else:
+        image = load_image(str(input_path)).convert("RGB").resize((width, height))
 
     if detector is None:
-        detector = LineartDetector.from_pretrained("lllyasviel/Annotators")
+        detector = LineartDetector.from_pretrained(DEFAULT_DETECTOR_REPO)
 
     control_image = detector(image)
 
@@ -149,7 +153,7 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     pipe = create_pipeline(args.base_model, args.controlnet_model)
-    detector = LineartDetector.from_pretrained("lllyasviel/Annotators")
+    detector = LineartDetector.from_pretrained(DEFAULT_DETECTOR_REPO)
 
     control_image, output_image = generate_lineart(
         pipe=pipe,
