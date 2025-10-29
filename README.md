@@ -74,33 +74,74 @@
 
 現時点での実行フローは以下の順序で進める。各ステップはログを確認しながら一つずつ完了させることを推奨。
 
+0. **Gradio からダウンロードした画像の整理**  
+   - Gradio UI で生成すると `image.png` や `image (17).png` のような名前で保存される。次工程で取り違えないよう、まずは共通で使う識別子をセットし、必ずリネームして格納する。  
+     ```bash
+     export RUN_NAME=session1
+     export BASENAME=lena
+     export RUN_DIR=outputs/controlnet/$RUN_NAME
+     mkdir -p "$RUN_DIR"
+     mv "outputs/controlnet/image (17).png" "$RUN_DIR/${BASENAME}_generated.png"
+     ```  
+   - ControlNet プレビューも残したい場合は同様に `"$RUN_DIR/${BASENAME}_control.png"` へ移動する。以降の工程では `RUN_DIR` と `BASENAME` を変えない。
+
 1. **線画生成 (ControlNet LineArt)**  
-   - 仮想環境を有効化し、Gradio UI を起動:  
-     ```bash
-     source .sd-venv/bin/activate
-     python experiments/controlnet_lineart/gradio_app.py
-     ```  
-   - 起動後は UI 上で入力画像を選択し、初期プリセット（解像度 384, steps 8, guidance 5.0, Control Weight 0.9, LineArtDetector=coarse）で生成する。  
-   - 生成が成功すると `outputs/controlnet/` 配下に `*_control.png`（ControlNet出力）、`*_.png`（生成画像）、`*_binary.png`（二値化済み）が書き出される。
+   - すべての工程で同じ識別子を使いまわすと取り違えを防げる。以下では  
+     `RUN_NAME=session1` / `BASENAME=lena` / `RUN_DIR=outputs/controlnet/$RUN_NAME` を例に説明する。  
+   - 仮想環境を有効化し、Gradio UI か CLI のどちらかで線画を生成する。
+     - Gradio の場合は以下で起動する。UI 上では左側に「ControlNetプレビュー（参考用）」、右側に「二値線画（potraceに渡す）」が表示されるので、**次工程で使うのは右側の画像のみ** と覚えておく。ダウンロードしたファイルはデフォルトで `image.png` や `image (1).png` になるため、取得直後にリネームして所定の出力ディレクトリへ移動する。  
+       ```bash
+       source .sd-venv/bin/activate
+       python experiments/controlnet_lineart/gradio_app.py
+       ```  
+       例: macOS の場合はダウンロードしたファイルを以下のように整理する:  
+       ```bash
+       export RUN_NAME=session1
+       export BASENAME=lena
+       export RUN_DIR=outputs/controlnet/$RUN_NAME
+       mkdir -p "$RUN_DIR"
+       mv ~/Downloads/image.png "$RUN_DIR/${BASENAME}_control.png"
+       mv ~/Downloads/image\ \(1\).png "$RUN_DIR/${BASENAME}_generated.png"
+       ```  
+       `Generated Line Art` が 0/255 の二値化済み PNG なので、このファイルを次工程へ渡す。  
+     - CLI の場合は最初に変数を定義し、出力先を統一する:  
+       ```bash
+       export RUN_NAME=session1
+       export BASENAME=lena
+       export RUN_DIR=outputs/controlnet/$RUN_NAME
+       mkdir -p "$RUN_DIR"
+
+       python experiments/controlnet_lineart/lineart_poc.py \
+         --image samples/${BASENAME}.jpg \
+         --output-dir "$RUN_DIR" \
+         --width 384 --height 384 \
+         --steps 8 --guidance-scale 5.0 \
+         --control-weight 0.9 \
+         --bin-threshold 150
+       ```  
+       これで `"$RUN_DIR/${BASENAME}_control_lineart.png"`（検出結果）と  
+       `"$RUN_DIR/${BASENAME}_generated.png"`（二値化済み線画）が揃う。
 2. **二値PNG → SVG 変換 (potrace)**  
-   - `lineart_binary.png` のように黒背景/白線の二値画像を入力とし、potrace でベクタ化する。  
-   - 例:  
+   - 上記と同じ `RUN_DIR` / `BASENAME` をそのまま使い、二値PNGを SVG に変換する。  
      ```bash
-     scripts/png_to_svg.sh outputs/controlnet/lineart_binary.png outputs/controlnet/lineart.svg --turdsize 2 --alphamax 0.8
+     scripts/png_to_svg.sh \
+       "$RUN_DIR/${BASENAME}_generated.png" \
+       "$RUN_DIR/${BASENAME}.svg" \
+       --turdsize 2 --alphamax 0.8
      ```  
-   - `--turdsize` や `--alphamax` を調整して細かい線の消し込み／滑らかさをチューニングする。必要に応じて `convert input.png -monochrome tmp.pbm` のように PBM 化してから与えても良い。
+   - `--turdsize` や `--alphamax` を調整して細かい線の消し込み／滑らかさをチューニングする。PBM への変換が必要なら `convert "$IN" -monochrome /tmp/tmp.pbm` のように事前加工してから `scripts/png_to_svg.sh /tmp/tmp.pbm ...` を実行する。
 3. **SVG → GeoJSON 変換**  
-   - 正規化設定を確認しながら `svg_to_geojson.py` を実行する:  
+   - 同じベース名を用いて `svg_to_geojson.py` を実行する:  
      ```bash
      python svg_to_geojson.py \
-       --input outputs/controlnet/lineart.svg \
-       --output outputs/controlnet/lineart.geojson \
+       --input "$RUN_DIR/${BASENAME}.svg" \
+       --output "$RUN_DIR/${BASENAME}.geojson" \
        --normalize-range -179 179 -85 85
      ```  
    - `--no-normalize` を付けると SVG のピクセル座標のまま出力される。geojson.io などで閲覧する場合は正規化を有効にしておく。
 4. **projection-face での描画確認**  
-   - 生成した GeoJSON を `projection-face` リポジトリのテスト用データにコピーし、想定どおりレンダリングされるかチェックする。  
-   - 表示がおかしい場合は前段の閾値や potrace のパラメータを調整し、再度 1. からやり直す。
+   - 生成した GeoJSON（例: `outputs/controlnet/session1/lena.geojson`）を `projection-face` リポジトリのテスト用データにコピーし、想定どおりレンダリングされるかチェックする。  
+   - 表示がおかしい場合は前段の閾値や potrace のパラメータを調整し、再度 1. からやり直す。途中で `RUN_NAME` や `BASENAME` を変えないことが混乱防止のポイント。
 
 上記手順で生成された `lineart.geojson` を基準として、Raycast 連携や自動化スクリプトの整備を進める。
 
