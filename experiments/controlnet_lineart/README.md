@@ -47,6 +47,6 @@ python experiments/controlnet_lineart/gradio_app.py
 - M4 MacBook Air (MPS) で 512x512, 15 steps の場合、生成に ~20 秒程度。  
 - 出力された線画は OpenCV ベースよりも陰影の表現が豊富で、髪のラインも滑らか。  
 - 今後の課題:
-  - `potrace` 等でのベクタ化 → `svg_to_geojson.py` への接続
+- `potrace` 等でのベクタ化 → `pipeline/svg_to_geojson.py` への接続
   - プロンプト/ガイダンススケールのチューニング
   - 自前顔写真（`samples/self.jpg`）での画質評価とパラメータ最適化
