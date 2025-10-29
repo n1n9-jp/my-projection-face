@@ -74,43 +74,31 @@
 
 現時点での実行フローは以下の順序で進める。各ステップはログを確認しながら一つずつ完了させることを推奨。
 
-0. **Gradio からダウンロードした画像の整理**  
-   - Gradio UI で生成すると `image.png` や `image (17).png` のような名前で保存される。次工程で取り違えないよう、まずは共通で使う識別子をセットし、必ずリネームして格納する。  
+0. **共通設定（セッション識別子の定義）**  
+   - 各工程で同じファイル名を使い回すため、まずはセッション名とベース名を決めて環境変数に設定する。1 セッションにつき 1 回実行すればよい。  
      ```bash
      export RUN_NAME=session1
      export BASENAME=lena
      export RUN_DIR=outputs/controlnet/$RUN_NAME
      mkdir -p "$RUN_DIR"
-     mv "outputs/controlnet/image (17).png" "$RUN_DIR/${BASENAME}_generated.png"
      ```  
-   - ControlNet プレビューも残したい場合は同様に `"$RUN_DIR/${BASENAME}_control.png"` へ移動する。以降の工程では `RUN_DIR` と `BASENAME` を変えない。
+   - 以降の工程では `RUN_DIR` と `BASENAME` を変更しない。Gradio で生成したファイルは一旦 `~/Downloads` に落ちるため、工程1で右側の出力だけをこのディレクトリへ移動・リネームする。
 
 1. **線画生成 (ControlNet LineArt)**  
-   - すべての工程で同じ識別子を使いまわすと取り違えを防げる。以下では  
-     `RUN_NAME=session1` / `BASENAME=lena` / `RUN_DIR=outputs/controlnet/$RUN_NAME` を例に説明する。  
-   - 仮想環境を有効化し、Gradio UI か CLI のどちらかで線画を生成する。
-     - Gradio の場合は以下で起動する。UI 上では左側に「ControlNetプレビュー（参考用）」、右側に「二値線画（potraceに渡す）」が表示されるので、**次工程で使うのは右側の画像のみ** と覚えておく。ダウンロードしたファイルはデフォルトで `image.png` や `image (1).png` になるため、取得直後にリネームして所定の出力ディレクトリへ移動する。  
+   - 仮想環境を有効化し、Gradio UI か CLI のどちらかで線画を生成する。ここで得られる **右側の二値線画** が後工程の入力となる。
+     - Gradio の場合:  
        ```bash
        source .sd-venv/bin/activate
        python experiments/controlnet_lineart/gradio_app.py
        ```  
-       例: macOS の場合はダウンロードしたファイルを以下のように整理する:  
+       生成後、UI 右側の「二値線画（potraceに渡す）」をダウンロードし、すぐにリネームして `RUN_DIR` へ移す。  
+       例 (macOS):  
        ```bash
-       export RUN_NAME=session1
-       export BASENAME=lena
-       export RUN_DIR=outputs/controlnet/$RUN_NAME
-       mkdir -p "$RUN_DIR"
-       mv ~/Downloads/image.png "$RUN_DIR/${BASENAME}_control.png"
        mv ~/Downloads/image\ \(1\).png "$RUN_DIR/${BASENAME}_generated.png"
        ```  
-       `Generated Line Art` が 0/255 の二値化済み PNG なので、このファイルを次工程へ渡す。  
-     - CLI の場合は最初に変数を定義し、出力先を統一する:  
+       `Generated Line Art` が 0/255 の二値化済み PNG なので、このファイルを次工程へ渡す。左側の「ControlNetプレビュー」は参考用なので、必要であれば任意の名前で保存する。  
+     - CLI の場合:  
        ```bash
-       export RUN_NAME=session1
-       export BASENAME=lena
-       export RUN_DIR=outputs/controlnet/$RUN_NAME
-       mkdir -p "$RUN_DIR"
-
        python experiments/controlnet_lineart/lineart_poc.py \
          --image samples/${BASENAME}.jpg \
          --output-dir "$RUN_DIR" \
@@ -119,8 +107,8 @@
          --control-weight 0.9 \
          --bin-threshold 150
        ```  
-       これで `"$RUN_DIR/${BASENAME}_control_lineart.png"`（検出結果）と  
-       `"$RUN_DIR/${BASENAME}_generated.png"`（二値化済み線画）が揃う。
+       自動的に `"$RUN_DIR/${BASENAME}_control_lineart.png"`（検出結果）と  
+       `"$RUN_DIR/${BASENAME}_generated.png"`（二値化済み線画）が生成される。
 2. **二値PNG → SVG 変換 (potrace)**  
    - 上記と同じ `RUN_DIR` / `BASENAME` をそのまま使い、二値PNGを SVG に変換する。  
      ```bash
