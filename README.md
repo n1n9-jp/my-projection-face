@@ -2,6 +2,27 @@
 
 このリポジトリでは、ウェブカメラで撮影した顔写真を線画化し、GeoJSONとして出力したデータを `projection-face` に取り込むツールの開発を進める。
 
+## リポジトリ構成とセットアップ
+
+- `pipeline/`: ControlNet → SVG → GeoJSON の実装本体（Python + 補助スクリプト）。  
+- `scripts/`: CLI から呼び出すための薄いラッパー (`run_pipeline_cli.py`, `png_to_svg_cli.sh`) を配置。  
+- `external/projection-face/`: `projection-face` リポジトリをサブモジュールとして取得し、描画確認に利用する。  
+- `experiments/`: Gradio UI や OpenCV ベースの PoC・調整用コード。
+
+初回セットアップ:
+
+```bash
+git clone https://github.com/n1n9-jp/my-projection-face.git
+cd my-projection-face
+git submodule update --init --recursive
+```
+
+既存リポジトリにサブモジュールを追加する場合は以下を実行する。
+
+```bash
+git submodule add https://github.com/n1n9-jp/projection-face.git external/projection-face
+```
+
 ## 実装プラン（初期案）
 
 1. **仕様整理**  
