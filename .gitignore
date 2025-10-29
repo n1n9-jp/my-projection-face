@@ -1,5 +1,6 @@
 .DS_Store
 .venv/
+.sd-venv/
 outputs/*
 !outputs/.gitkeep
 samples/*.jpg
