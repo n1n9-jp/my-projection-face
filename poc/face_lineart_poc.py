@@ -89,16 +89,24 @@ def expand_roi(x: int, y: int, w: int, h: int, padding: float, width: int, heigh
 
 
 def preprocess(gray_face: np.ndarray) -> np.ndarray:
-    # ヒストグラム平坦化で明暗を均一化
-    equalized = cv2.equalizeHist(gray_face)
-    # ノイズ抑制しつつエッジ保持するためにbilateral filter
-    smoothed = cv2.bilateralFilter(equalized, d=7, sigmaColor=75, sigmaSpace=75)
+    # CLAHE で局所的にコントラストを強調
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    equalized = clahe.apply(gray_face)
+    # ノイズを抑えつつエッジを保持
+    bilateral = cv2.bilateralFilter(equalized, d=9, sigmaColor=80, sigmaSpace=80)
+    # 細かなノイズをさらに抑える
+    smoothed = cv2.GaussianBlur(bilateral, (3, 3), 0)
     return smoothed
 
 
-def extract_edges(image: np.ndarray) -> np.ndarray:
-    # Cannyエッジ検出。閾値は経験的に調整。
-    edges = cv2.Canny(image, threshold1=40, threshold2=120)
+def extract_edges(image: np.ndarray, sigma: float = 0.33) -> np.ndarray:
+    # 画像の中央値から Canny の閾値を自動算出
+    median = float(np.median(image))
+    lower = int(max(0, (1.0 - sigma) * median))
+    upper = int(min(255, (1.0 + sigma) * median))
+    if lower == upper:
+        upper = min(255, lower + 30)
+    edges = cv2.Canny(image, lower, upper)
     return edges
 
 
@@ -190,16 +198,18 @@ def run_pipeline(
     processed = preprocess(face_gray)
     edges = extract_edges(processed)
 
-    # 輪郭抽出（細いノイズを減らすためにモルフォロジー処理で線を太らせる）
-    kernel = np.ones((3, 3), np.uint8)
-    dilated = cv2.dilate(edges, kernel, iterations=1)
+    # モルフォロジー処理で線を繋げつつノイズ除去
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=1)
+    dilated = cv2.dilate(closed, kernel, iterations=1)
     contours, _ = cv2.findContours(dilated, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
     filtered = filter_contours(contours, min_length=60.0, image_size=dilated.shape)
 
     # 近似して点数削減
     simplified: List[np.ndarray] = []
     for contour in filtered:
-        epsilon = 0.005 * cv2.arcLength(contour, True)
+        perim = cv2.arcLength(contour, True)
+        epsilon = max(1.2, 0.0025 * perim)
         approx = cv2.approxPolyDP(contour, epsilon=epsilon, closed=False)
         simplified.append(approx)
 

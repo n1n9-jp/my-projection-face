@@ -34,6 +34,15 @@ python poc/face_lineart_poc.py --image samples/lena.jpg --output-dir outputs
 - 画像全体を覆う矩形がSVG化されないよう、バウンディングボックスが元画像の 90% を超える輪郭は除外。  
 - `samples/test_face.png` を使った場合、眼・口・輪郭など複数のパスが出力されるようになった。
 
+### 2024-XX-XX: 前処理・エッジ抽出のブラッシュアップ
+
+- グローバル平坦化から CLAHE（局所コントラスト強調）へ変更し、陰影の少ない領域でも輪郭を保持。  
+- bilateral filter + Gaussian blur の2段構えでノイズを抑えつつエッジを柔らかく整形。  
+- Canny の閾値は画像中央値ベースで自動算出（auto Canny）。  
+- モルフォロジー処理を「クロージング → 膨張」に変更し、細線を適度に繋げる。  
+- `cv2.approxPolyDP` の `epsilon` を厳しめに設定し、折れ線感を軽減。  
+- `samples/lena.jpg` の出力では輪郭数 22、エッジ画素比 ~5.4%。外形・髪・目鼻の線が増え、Projection Face 用の素材に一歩近づいた。
+
 ## 処理フロー
 
 1. `haarcascade_frontalface_default.xml` による顔検出。最大のバウンディングボックスを利用。  

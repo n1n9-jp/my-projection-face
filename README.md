@@ -59,7 +59,7 @@
 
 ## 顔線画化 PoC
 
-- `poc/face_lineart_poc.py` に OpenCV ベースのパイプライン（顔検出 → 前処理 → Canny エッジ → 輪郭抽出 → SVG 化）を試作。  
+- `poc/face_lineart_poc.py` に OpenCV ベースのパイプライン（顔検出 → 前処理 → Canny エッジ → 輪郭抽出 → SVG 化）を試作。CLAHE + auto Canny + モルフォロジー調整で線の滑らかさを向上。  
 - 依存ライブラリは仮想環境 `.venv` で `pip install opencv-python`（`numpy` 同梱）。  
 - サンプル実行: `source .venv/bin/activate && python poc/face_lineart_poc.py --image samples/lena.jpg --output-dir outputs`  
 - 出力例と課題、調整ポイントは `poc/face_lineart_notes.md` に記録。今後 `potrace` 等での滑らかな曲線化や、GeoJSON 連携を検証予定。  
