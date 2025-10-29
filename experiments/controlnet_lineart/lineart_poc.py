@@ -35,10 +35,10 @@ from PIL import Image
 DEFAULT_BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 DEFAULT_CONTROLNET_MODEL = "lllyasviel/control_v11p_sd15_lineart"
 DEFAULT_DETECTOR_REPO = "lllyasviel/Annotators"
-DEFAULT_CONTROL_WEIGHT = 0.6
+DEFAULT_CONTROL_WEIGHT = 0.55
 DEFAULT_COARSE = False
-DEFAULT_DETECT_RESOLUTION = 224
-DEFAULT_BIN_THRESHOLD = 150
+DEFAULT_DETECT_RESOLUTION = 192
+DEFAULT_BIN_THRESHOLD = 170
 
 
 def parse_args() -> argparse.Namespace:
